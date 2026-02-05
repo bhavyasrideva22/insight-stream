@@ -1,22 +1,24 @@
-import { Clock, AlertTriangle, User, Car, Flame, ShieldAlert, Eye, Package } from 'lucide-react';
+import { Clock, User, ShieldAlert, Eye, Package } from 'lucide-react';
 import { cn } from '@/lib/utils';
 
-interface Activity {
+export interface Activity {
   id: string;
   timestamp: string;
   label: string;
   type: 'normal' | 'warning' | 'danger';
-  icon: React.ReactNode;
   confidence: number;
 }
 
-const activities: Activity[] = [
+interface ActivityTimelineProps {
+  activities?: Activity[];
+}
+
+const defaultActivities: Activity[] = [
   {
     id: '1',
     timestamp: '00:00',
     label: 'Person enters building',
     type: 'normal',
-    icon: <User className="w-4 h-4" />,
     confidence: 0.94,
   },
   {
@@ -24,7 +26,6 @@ const activities: Activity[] = [
     timestamp: '00:45',
     label: 'Loitering detected near entrance',
     type: 'warning',
-    icon: <Eye className="w-4 h-4" />,
     confidence: 0.87,
   },
   {
@@ -32,7 +33,6 @@ const activities: Activity[] = [
     timestamp: '02:10',
     label: 'Unauthorized access attempt',
     type: 'danger',
-    icon: <ShieldAlert className="w-4 h-4" />,
     confidence: 0.92,
   },
   {
@@ -40,7 +40,6 @@ const activities: Activity[] = [
     timestamp: '03:00',
     label: 'Theft detected - Object removed',
     type: 'danger',
-    icon: <Package className="w-4 h-4" />,
     confidence: 0.89,
   },
   {
@@ -48,12 +47,25 @@ const activities: Activity[] = [
     timestamp: '04:30',
     label: 'Person exits building',
     type: 'normal',
-    icon: <User className="w-4 h-4" />,
     confidence: 0.96,
   },
 ];
 
-const ActivityTimeline = () => {
+const getActivityIcon = (activity: Activity) => {
+  const label = activity.label.toLowerCase();
+  if (label.includes('theft') || label.includes('object')) {
+    return <Package className="w-4 h-4" />;
+  }
+  if (label.includes('unauthorized') || label.includes('access')) {
+    return <ShieldAlert className="w-4 h-4" />;
+  }
+  if (label.includes('loiter')) {
+    return <Eye className="w-4 h-4" />;
+  }
+  return <User className="w-4 h-4" />;
+};
+
+const ActivityTimeline = ({ activities = defaultActivities }: ActivityTimelineProps) => {
   return (
     <div className="glass-card p-4 h-full flex flex-col">
       <div className="flex items-center gap-2 mb-4">
@@ -102,7 +114,7 @@ const ActivityTimeline = () => {
                   activity.type === 'normal' && "bg-primary/20 text-primary"
                 )}
               >
-                {activity.icon}
+                {getActivityIcon(activity)}
               </div>
 
               <div className="flex-1 min-w-0">

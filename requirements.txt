@@ -1,0 +1,12 @@
+fastapi==0.115.5
+uvicorn[standard]==0.32.1
+opencv-python==4.10.0.84
+numpy==2.2.1
+pydantic==2.10.4
+
+# Optional (for future real models / LLMs)
+# torch
+# ultralytics
+# transformers
+# openai
+

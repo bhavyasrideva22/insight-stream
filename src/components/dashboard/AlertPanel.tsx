@@ -1,9 +1,9 @@
 import { Bell, AlertTriangle, ShieldAlert, X, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 
-interface Alert {
+export interface Alert {
   id: string;
   title: string;
   message: string;
@@ -39,8 +39,18 @@ const initialAlerts: Alert[] = [
   },
 ];
 
-const AlertPanel = () => {
-  const [alerts, setAlerts] = useState<Alert[]>(initialAlerts);
+interface AlertPanelProps {
+  alerts?: Alert[];
+}
+
+const AlertPanel = ({ alerts: externalAlerts }: AlertPanelProps) => {
+  const [alerts, setAlerts] = useState<Alert[]>(externalAlerts ?? initialAlerts);
+
+  useEffect(() => {
+    if (externalAlerts) {
+      setAlerts(externalAlerts);
+    }
+  }, [externalAlerts]);
 
   const dismissAlert = (id: string) => {
     setAlerts(prev => prev.filter(alert => alert.id !== id));

@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Video, Camera, Play, Pause, Volume2, VolumeX, Maximize2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
@@ -12,7 +12,37 @@ interface Detection {
   height: number;
 }
 
-const VideoFeed = () => {
+interface AnalysisActivity {
+  timestamp: string;
+  label: string;
+  type: 'normal' | 'warning' | 'danger';
+  confidence: number;
+}
+
+interface AnalysisAlert {
+  id: string;
+  title: string;
+  message: string;
+  severity: 'warning' | 'critical';
+  timestamp: string;
+  is_new: boolean;
+}
+
+interface AnalysisResponse {
+  video_duration_seconds: number;
+  activities: AnalysisActivity[];
+  narrative_summary: string;
+  risk_level: 'low' | 'medium' | 'high';
+  alerts: AnalysisAlert[];
+}
+
+interface VideoFeedProps {
+  onAnalysisComplete?: (result: AnalysisResponse) => void;
+  onAnalysisError?: (error: Error) => void;
+  onAnalyzingChange?: (isAnalyzing: boolean) => void;
+}
+
+const VideoFeed = ({ onAnalysisComplete, onAnalysisError, onAnalyzingChange }: VideoFeedProps) => {
   const [isPlaying, setIsPlaying] = useState(true);
   const [isMuted, setIsMuted] = useState(true);
   const [currentTime, setCurrentTime] = useState("00:02:45");
@@ -20,6 +50,8 @@ const VideoFeed = () => {
     { id: '1', label: 'Person', confidence: 0.94, x: 20, y: 30, width: 15, height: 35 },
     { id: '2', label: 'Person', confidence: 0.89, x: 55, y: 35, width: 12, height: 30 },
   ]);
+  const [isUploading, setIsUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (isPlaying) {
@@ -33,6 +65,91 @@ const VideoFeed = () => {
       return () => clearInterval(interval);
     }
   }, [isPlaying]);
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file type
+    if (!file.type.startsWith('video/')) {
+      onAnalysisError?.(new Error('Please select a valid video file'));
+      e.target.value = '';
+      return;
+    }
+
+    setIsUploading(true);
+    onAnalyzingChange?.(true);
+
+    try {
+      // First, check if backend is reachable
+      try {
+        const healthCheck = await fetch('http://localhost:8000/health', {
+          method: 'GET',
+          signal: AbortSignal.timeout(5000), // 5 second timeout
+        });
+        if (!healthCheck.ok) {
+          throw new Error(`Backend health check failed (${healthCheck.status}). Make sure the backend is running on port 8000.`);
+        }
+      } catch (healthErr) {
+        if (healthErr instanceof Error) {
+          if (healthErr.name === 'AbortError') {
+            throw new Error('Backend connection timeout. Make sure the FastAPI backend is running on http://localhost:8000. Run: uvicorn app:app --reload --host 0.0.0.0 --port 8000');
+          }
+          if (healthErr.message.includes('Failed to fetch') || healthErr.message.includes('NetworkError')) {
+            throw new Error('Cannot reach backend. Start it first:\n\nEASIEST: Double-click START-BACKEND.bat in your project folder.\n\nOr in PowerShell (project folder):\n  python -m uvicorn app:app --reload --host 0.0.0.0 --port 8000\n\nKeep that window open, wait ~10 sec, then refresh this page and try again.');
+          }
+        }
+        throw new Error(`Cannot reach backend: ${healthErr instanceof Error ? healthErr.message : 'Unknown error'}. Make sure the backend is running on http://localhost:8000`);
+      }
+
+      // Prepare form data
+      const formData = new FormData();
+      formData.append('file', file);
+
+      console.log('Uploading video:', file.name, 'Size:', file.size, 'bytes', 'Type:', file.type);
+
+      // Upload and analyze
+      const response = await fetch('http://localhost:8000/analyze-video', {
+        method: 'POST',
+        body: formData,
+        // Don't set Content-Type header - browser will set it with boundary for multipart/form-data
+      });
+
+      console.log('Response status:', response.status, response.statusText);
+
+      if (!response.ok) {
+        let errorMessage = `Backend error: ${response.status} ${response.statusText}`;
+        try {
+          const errorData = await response.json();
+          if (errorData.detail) {
+            errorMessage = `Backend error: ${errorData.detail}`;
+          }
+        } catch {
+          // If response is not JSON, use the status text
+          const text = await response.text();
+          if (text) {
+            errorMessage = `Backend error: ${text}`;
+          }
+        }
+        throw new Error(errorMessage);
+      }
+
+      const data: AnalysisResponse = await response.json();
+      console.log('Analysis complete:', data);
+      onAnalysisComplete?.(data);
+    } catch (err) {
+      console.error('Video analysis failed', err);
+      const error = err instanceof Error 
+        ? err 
+        : new Error(`Unknown error: ${String(err)}`);
+      onAnalysisError?.(error);
+    } finally {
+      setIsUploading(false);
+      onAnalyzingChange?.(false);
+      // Reset the input so the same file can be selected again if needed
+      e.target.value = '';
+    }
+  };
 
   return (
     <div className="glass-card p-4 h-full flex flex-col">
@@ -81,8 +198,14 @@ const VideoFeed = () => {
 
         {/* YOLO Processing indicator */}
         <div className="absolute top-3 right-3 bg-background/80 backdrop-blur-sm px-3 py-1.5 rounded-lg flex items-center gap-2">
-          <div className="w-2 h-2 bg-success rounded-full animate-pulse" />
-          <span className="text-xs font-mono">YOLO Processing</span>
+          <div
+            className={`w-2 h-2 rounded-full ${
+              isUploading ? 'bg-success animate-pulse' : 'bg-muted-foreground'
+            }`}
+          />
+          <span className="text-xs font-mono">
+            {isUploading ? 'Analyzing video (YOLO + LSTM + LLM)' : 'YOLO Standby'}
+          </span>
         </div>
 
         {/* Grid overlay */}
@@ -125,6 +248,23 @@ const VideoFeed = () => {
         </div>
         <div className="flex items-center gap-2">
           <span className="text-xs text-muted-foreground">Objects: {detections.length}</span>
+          <input
+            ref={fileInputRef}
+            type="file"
+            className="hidden"
+            accept="video/*"
+            onChange={handleFileChange}
+          />
+          <Button
+            variant="outline"
+            size="sm"
+            className="h-8 gap-2"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={isUploading}
+          >
+            <Video className="w-4 h-4" />
+            {isUploading ? 'Analyzing...' : 'Upload & Analyze'}
+          </Button>
           <Button variant="ghost" size="icon" className="h-8 w-8">
             <Maximize2 className="w-4 h-4" />
           </Button>

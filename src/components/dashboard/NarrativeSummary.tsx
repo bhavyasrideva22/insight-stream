@@ -2,10 +2,16 @@ import { FileText, Sparkles, RefreshCw } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useState } from 'react';
 
-const NarrativeSummary = () => {
+interface NarrativeSummaryProps {
+  summary?: string;
+  labels?: string[];
+  isLoading?: boolean;
+}
+
+const NarrativeSummary = ({ summary, labels, isLoading }: NarrativeSummaryProps) => {
   const [isGenerating, setIsGenerating] = useState(false);
 
-  const narrativeText = `The CCTV footage captured at the main entrance reveals a sequence of concerning activities over a 5-minute period. At 00:00, an individual was detected entering the building through the main entrance. The subject exhibited loitering behavior near the entrance area at approximately 00:45, remaining stationary for an extended period.
+  const fallbackNarrative = `The CCTV footage captured at the main entrance reveals a sequence of concerning activities over a 5-minute period. At 00:00, an individual was detected entering the building through the main entrance. The subject exhibited loitering behavior near the entrance area at approximately 00:45, remaining stationary for an extended period.
 
 At 02:10, the AI system detected an unauthorized access attempt when the individual approached a restricted zone. The LSTM-based activity recognition module identified suspicious movement patterns consistent with intrusion behavior.
 
@@ -13,7 +19,12 @@ A critical incident occurred at 03:00 when the system detected theft activity - 
 
 The combined analysis of YOLO object detection and LSTM temporal modeling indicates a pre-planned security breach with high confidence.`;
 
-  const labels = ['Entry', 'Loitering', 'Intrusion', 'Theft', 'Exit'];
+  const fallbackLabels = ['Entry', 'Loitering', 'Intrusion', 'Theft', 'Exit'];
+
+  const activeLabels = labels && labels.length > 0 ? labels : fallbackLabels;
+  const narrativeText = summary ?? fallbackNarrative;
+
+  const effectiveLoading = isLoading || isGenerating;
 
   const handleRegenerate = () => {
     setIsGenerating(true);
@@ -48,7 +59,7 @@ The combined analysis of YOLO object detection and LSTM temporal modeling indica
       <div className="mb-4">
         <p className="text-xs text-muted-foreground mb-2">Detected Activity Labels:</p>
         <div className="flex flex-wrap gap-2">
-          {labels.map((label, index) => (
+          {activeLabels.map((label, index) => (
             <span
               key={label}
               className="text-xs px-3 py-1 bg-secondary rounded-full font-medium animate-slide-up"
@@ -63,7 +74,7 @@ The combined analysis of YOLO object detection and LSTM temporal modeling indica
       {/* Narrative Text */}
       <div className="flex-1 overflow-y-auto scrollbar-thin">
         <div className="prose prose-sm prose-invert max-w-none">
-          {isGenerating ? (
+          {effectiveLoading ? (
             <div className="space-y-2">
               <div className="h-4 bg-secondary rounded animate-pulse w-full" />
               <div className="h-4 bg-secondary rounded animate-pulse w-[95%]" />
@@ -83,7 +94,7 @@ The combined analysis of YOLO object detection and LSTM temporal modeling indica
       <div className="mt-4 pt-3 border-t border-border/50 flex items-center justify-between">
         <div className="flex items-center gap-2 text-xs text-muted-foreground">
           <FileText className="w-4 h-4" />
-          <span>345 words • Generated in 1.2s</span>
+          <span>AI-generated incident narrative</span>
         </div>
         <span className="text-xs bg-primary/20 text-primary px-2 py-1 rounded-full font-mono">
           GPT-4 Vision
